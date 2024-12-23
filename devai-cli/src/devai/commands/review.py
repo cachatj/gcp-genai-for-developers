@@ -18,6 +18,7 @@ from devai.util.file_processor import format_files_as_string
 from vertexai.generative_models import (
     GenerativeModel,
     Image,
+    Part
 )
 from google.cloud.aiplatform import telemetry
 import os
@@ -37,9 +38,7 @@ from rich.table import Table
 # from devai.commands.jira import create_jira_issue
 # from devai.commands.gitlab import create_gitlab_issue_comment
 
-USER_AGENT = 'cloud-solutions/genai-for-developers-v1.0'
-
-model_name="gemini-1.5-pro"
+from .constants import USER_AGENT, MODEL_NAME
 
 
 def ensure_env_variable(var_name):
@@ -295,7 +294,7 @@ Provide an overview or overall impression entry for the code as the first entry.
     # Load files as text into the source variable
     source = source.format(format_files_as_string(context))
 
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat(response_validation=False)
         code_chat.send_message(qry)
@@ -434,7 +433,7 @@ def performance(context):
     # Load files as text into source variable
     source=source.format(format_files_as_string(context))
 
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat(response_validation=False)
         code_chat.send_message(qry)
@@ -538,7 +537,7 @@ def security(context):
     # Load files as text into source variable
     source=source.format(format_files_as_string(context))
     
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat(response_validation=False)
         code_chat.send_message(qry)
@@ -627,7 +626,7 @@ def testcoverage(context):
     # Load files as text into source variable
     source=source.format(format_files_as_string(context))
     
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat(response_validation=False)
         code_chat.send_message(qry)
@@ -683,7 +682,7 @@ def blockers(context):
     # Load files as text into source variable
     source=source.format(format_files_as_string(context))
     
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat(response_validation=False)
         code_chat.send_message(qry)
@@ -755,7 +754,7 @@ def impact(current, target):
     current_source=current_source.format(format_files_as_string(current))
     target_source=target_source.format(format_files_as_string(target))
     
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat(response_validation=False)
         code_chat.send_message(qry)
@@ -780,11 +779,11 @@ def imgdiff(current, target):
     """
 
     before_state='''
-    BEFORE UPGRADE STATE: 
+    IMAGE 1: 
 
     '''
     after_state='''
-    AFTER UPGRADE STATE:
+    IMAGE 2:
 
     '''
     qry = get_prompt('review_query')
@@ -792,14 +791,15 @@ def imgdiff(current, target):
     if qry is None:
         qry='''
         INSTRUCTIONS:
-        Analyze images of the Web page and write the report about what UI elements are missing between the two images.
-        Explain how you reached this decision.
+        Meticulously examine the two provided images. Generate a comprehensive report detailing the specific 
+        elements absent from each image in comparison to the other.  Clearly articulate the reasoning and 
+        methodology employed to arrive at your conclusions.
         '''
     
     contents = [qry, after_state, load_image_from_path(current),
                 before_state, load_image_from_path(target)]
 
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         responses = code_chat_model.generate_content(contents, stream=True)
 
@@ -828,7 +828,44 @@ def image(file, prompt):
     
     contents = [qry, load_image_from_path(file)]
 
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
+    with telemetry.tool_context_manager(USER_AGENT):
+        responses = code_chat_model.generate_content(contents, stream=True)
+
+    for response in responses:
+        print(response.text, end="")
+
+@click.command(name='video')
+@click.option('-f', '--file', required=True, type=str, default="")
+@click.option('-p', '--prompt', required=True, type=str, default="")
+def video(file, prompt):
+    """
+    This function performs a video analysis using the Generative Model API.
+
+    Args:
+        file (str): path to video.
+        prompt (str): question about video.
+    """
+
+    qry = get_prompt('review_query')
+
+    if qry is None:
+        qry=f'''
+        INSTRUCTIONS:
+        {prompt}
+        '''
+
+    with open(file, "rb") as f:
+        video_data = f.read()
+
+    video = Part.from_data(
+        data=video_data,
+        mime_type="video/mp4",
+    )
+
+    contents = [qry, video]
+
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         responses = code_chat_model.generate_content(contents, stream=True)
 
@@ -850,4 +887,4 @@ review.add_command(blockers)
 review.add_command(impact)
 review.add_command(imgdiff)
 review.add_command(image)
-
+review.add_command(video)

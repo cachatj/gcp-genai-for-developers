@@ -26,8 +26,10 @@ from google.api_core.gapic_v1.client_info import ClientInfo
 import logging
 
 
-USER_AGENT = 'cloud-solutions/genai-for-developers-v1.0'
-model_name="gemini-1.5-pro"
+from .constants import USER_AGENT, MODEL_NAME
+
+# from devai.commands.github_cmd import create_github_pr
+
 
 def ensure_env_variable(var_name):
     """Ensure an environment variable is set."""
@@ -76,7 +78,9 @@ def get_prompt( secret_id: str) -> str:
 
 @click.command(name='readme')
 @click.option('-c', '--context', required=False, type=str, default="", help="The code, or context, that you would like to pass.")
-def readme(context):
+@click.option('-f', '--file', required=False, type=str, default="", help="The file path in the repo to update.")
+@click.option('-b', '--branch', required=False, type=str, default="", help="The branch name for PR")
+def readme(context, file, branch):
     """Create a README based on the context passed!
     
     This is useful when no existing README files exist. If you already have a README `update-readme` may be a better option.
@@ -135,13 +139,25 @@ def readme(context):
     # Load files as text into source variable
     source=source.format(format_files_as_string(context))
 
-    code_chat_model = GenerativeModel(model_name)
-    with telemetry.tool_context_manager(USER_AGENT):
-        code_chat = code_chat_model.start_chat()
-        code_chat.send_message(qry)
-        response = code_chat.send_message(source)
+    try:
+        code_chat_model = GenerativeModel(MODEL_NAME)
+        with telemetry.tool_context_manager(USER_AGENT):
+            code_chat = code_chat_model.start_chat()
+            code_chat.send_message(qry)
+            response = code_chat.send_message(source)
+            click.echo(f"{response.text}")
+    except Exception as e:
+        print(f"Failed to call LLM: {e}")
+        return
 
-    click.echo(f"{response.text}")
+    # if file and branch:
+    #     try:
+    #         create_github_pr(branch, {
+    #             file: response.text,
+    #             })
+    #     except Exception as e:
+    #         print(f"Failed to create pull request: {e}")
+
 
 @click.command(name='update-readme')
 @click.option('-f', '--file', type=str, help="The existing release notes to be updated.")
@@ -362,7 +378,7 @@ def update_readme(context, file):
    
     source=source.format(current=current, context=format_files_as_string(context))
     
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat()
         code_chat.send_message(qry)
@@ -432,7 +448,7 @@ def releasenotes(context, tag):
    
     source=source.format(format_files_as_string(context))
     
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat()
         code_chat.send_message(qry)
@@ -546,7 +562,7 @@ def update_releasenotes(context, tag, file):
    
     source=source.format(current=current, context=format_files_as_string(context))
     
-    code_chat_model = GenerativeModel(model_name)
+    code_chat_model = GenerativeModel(MODEL_NAME)
     with telemetry.tool_context_manager(USER_AGENT):
         code_chat = code_chat_model.start_chat()
         code_chat.send_message(qry)
